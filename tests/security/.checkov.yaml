@@ -1,0 +1,39 @@
+# Checkov configuration for Infrastructure as Code security scanning
+# https://www.checkov.io/2.Basics/CLI%20Command%20Reference.html
+
+# Directories to scan
+directory:
+  - infrastructure/cdk
+  - infrastructure/terraform
+
+# Frameworks to check
+framework:
+  - terraform
+  - cloudformation
+
+# Output format
+output: cli
+
+# Compact output
+compact: false
+
+# Quiet mode (only show failed checks)
+quiet: false
+
+# Skip specific checks
+skip-check:
+  # Skip checks that are not applicable or have valid exceptions
+  # Example: CKV_AWS_18 - S3 Bucket should have access logging enabled (not needed for this challenge)
+
+# Enable specific checks only (empty means all)
+check: []
+
+# Download external modules
+download-external-modules: true
+
+# External modules directory
+external-modules-download-path: .external_modules
+
+# Severity threshold (CRITICAL, HIGH, MEDIUM, LOW)
+# soft-fail: false
+# hard-fail-on: []

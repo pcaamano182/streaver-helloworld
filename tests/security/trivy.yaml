@@ -1,0 +1,33 @@
+# Trivy configuration for container image vulnerability scanning
+# https://aquasecurity.github.io/trivy/latest/docs/configuration/
+
+# Scan options
+scan:
+  security-checks:
+    - vuln      # Vulnerabilities
+    - config    # Misconfigurations
+    - secret    # Secrets
+
+# Severity levels to report
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+
+# Vulnerability database
+db:
+  repository: ghcr.io/aquasecurity/trivy-db
+
+# Output format
+format: table
+
+# Exit code
+# 0: No vulnerabilities found
+# 1: Vulnerabilities found
+exit-code: 1
+
+# Ignore unfixed vulnerabilities
+ignore-unfixed: false
+
+# Timeout for scanning
+timeout: 5m0s

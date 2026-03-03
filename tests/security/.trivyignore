@@ -1,0 +1,8 @@
+# Trivy ignore file for container image scanning
+# Add CVE IDs here to ignore specific vulnerabilities
+
+# Example:
+# CVE-2021-12345
+
+# Note: Only ignore vulnerabilities after proper risk assessment
+# and when mitigation is not immediately possible
