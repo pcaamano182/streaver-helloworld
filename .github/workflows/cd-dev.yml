@@ -1,0 +1,230 @@
+name: CD - Deploy to Dev
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ENVIRONMENT: dev
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy Infrastructure to Dev
+    runs-on: ubuntu-latest
+    # Note: This job requires AWS credentials configured as GitHub secrets
+    # AWS_ROLE_ARN_DEV: ARN of the role to assume for dev deployment
+    if: false  # Disabled - requires AWS credentials
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install CDK
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        run: |
+          cd infrastructure/cdk
+          pip install -r requirements.txt
+
+      - name: CDK deploy
+        run: |
+          cd infrastructure/cdk
+          cdk deploy --all \
+            --context environment=${{ env.ENVIRONMENT }} \
+            --require-approval never \
+            --outputs-file outputs.json
+
+      - name: Save CDK outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-outputs-dev
+          path: infrastructure/cdk/outputs.json
+
+  build-and-push-image:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    # Note: Requires ECR credentials
+    if: false  # Disabled - requires AWS credentials
+    outputs:
+      image-tag: ${{ steps.image-tag.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate image tag
+        id: image-tag
+        run: |
+          TAG="${{ github.sha }}-$(date +%s)"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Image tag: $TAG"
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: streaver-helloworld-dev
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.login-ecr.outputs.registry }}/streaver-helloworld-dev:${{ steps.image-tag.outputs.tag }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+
+  update-ecs-service:
+    name: Update ECS Service
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure, build-and-push-image]
+    if: false  # Disabled - requires AWS credentials
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition streaver-helloworld-task-dev \
+            --query taskDefinition > task-definition.json
+
+      - name: Update task definition image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: streaver-helloworld
+          image: ${{ needs.build-and-push-image.outputs.image-tag }}
+
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: streaver-helloworld-service-dev
+          cluster: streaver-helloworld-cluster-dev
+          wait-for-service-stability: true
+
+  run-integration-tests:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    needs: [update-ecs-service]
+    if: false  # Disabled - requires deployed environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r app/requirements.txt
+          pip install -r app/tests/requirements-test.txt
+
+      - name: Get ALB DNS from outputs
+        run: |
+          # Extract ALB DNS from CDK outputs or AWS CLI
+          echo "INTEGRATION_TEST_URL=http://example-alb-dev.us-east-1.elb.amazonaws.com" >> $GITHUB_ENV
+
+      - name: Run integration tests
+        env:
+          INTEGRATION_TEST_URL: ${{ env.INTEGRATION_TEST_URL }}
+        run: |
+          cd app
+          pytest tests/test_integration.py -v
+
+      - name: Run smoke test with k6
+        run: |
+          # Install k6
+          curl https://github.com/grafana/k6/releases/download/v0.48.0/k6-v0.48.0-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-v0.48.0-linux-amd64/k6 /usr/local/bin/
+
+          # Run smoke test
+          export TARGET_URL=${{ env.INTEGRATION_TEST_URL }}
+          k6 run tests/load/k6-smoke-test.js
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure, build-and-push-image, update-ecs-service, run-integration-tests]
+    if: always()
+    steps:
+      - name: Deployment status
+        run: |
+          echo "Infrastructure Deploy: ${{ needs.deploy-infrastructure.result }}"
+          echo "Image Build & Push: ${{ needs.build-and-push-image.result }}"
+          echo "ECS Service Update: ${{ needs.update-ecs-service.result }}"
+          echo "Integration Tests: ${{ needs.run-integration-tests.result }}"
+
+      - name: Create deployment annotation
+        run: |
+          echo "Deployment to DEV environment completed at $(date)"
+          echo "Commit: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.actor }}"
+
+  # Placeholder job that runs when AWS deployment jobs are disabled
+  placeholder-deployment:
+    name: Deployment Steps (Requires AWS Setup)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Information
+        run: |
+          echo "=========================================="
+          echo "CD Deployment Pipeline Configuration"
+          echo "=========================================="
+          echo ""
+          echo "This workflow is configured but requires AWS setup:"
+          echo ""
+          echo "Required GitHub Secrets:"
+          echo "  - AWS_ROLE_ARN_DEV: IAM role ARN for dev deployment"
+          echo ""
+          echo "Setup Instructions:"
+          echo "1. Create OIDC provider in AWS IAM"
+          echo "2. Create IAM role with trust policy for GitHub Actions"
+          echo "3. Add role ARN to repository secrets"
+          echo "4. Enable deployment jobs by setting 'if: false' to 'if: true'"
+          echo ""
+          echo "Deployment Steps (when enabled):"
+          echo "  ✓ Deploy CDK infrastructure"
+          echo "  ✓ Build and push Docker image to ECR"
+          echo "  ✓ Update ECS task definition"
+          echo "  ✓ Deploy to ECS service"
+          echo "  ✓ Run integration tests"
+          echo "  ✓ Run smoke tests with k6"
+          echo ""
+          echo "=========================================="

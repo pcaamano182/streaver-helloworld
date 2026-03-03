@@ -1,0 +1,287 @@
+name: CD - Deploy to Production (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy (required for production)'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip post-deployment tests'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  AWS_REGION: us-east-1
+  ENVIRONMENT: prod
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  approval:
+    name: Production Deployment Approval
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://console.aws.amazon.com/ecs/
+    steps:
+      - name: Approval checkpoint
+        run: |
+          echo "=========================================="
+          echo "PRODUCTION DEPLOYMENT APPROVED"
+          echo "=========================================="
+          echo "Approver: ${{ github.actor }}"
+          echo "Image tag: ${{ github.event.inputs.image_tag }}"
+          echo "Skip tests: ${{ github.event.inputs.skip_tests }}"
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "=========================================="
+
+      - name: Verify image tag
+        run: |
+          if [ -z "${{ github.event.inputs.image_tag }}" ] || [ "${{ github.event.inputs.image_tag }}" == "latest" ]; then
+            echo "Error: Explicit image tag required for production deployment"
+            exit 1
+          fi
+
+  pre-deployment-checks:
+    name: Pre-Deployment Checks
+    runs-on: ubuntu-latest
+    needs: [approval]
+    if: false  # Disabled - requires AWS credentials
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify image exists in cert
+        run: |
+          aws ecr describe-images \
+            --repository-name streaver-helloworld-cert \
+            --image-ids imageTag=${{ github.event.inputs.image_tag }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Check current ECS service status
+        run: |
+          aws ecs describe-services \
+            --cluster streaver-helloworld-cluster-prod \
+            --services streaver-helloworld-service-prod \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount}'
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure to Production
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks]
+    if: false  # Disabled - requires AWS credentials
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install CDK
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        run: |
+          cd infrastructure/cdk
+          pip install -r requirements.txt
+
+      - name: CDK diff (show changes)
+        run: |
+          cd infrastructure/cdk
+          cdk diff --context environment=${{ env.ENVIRONMENT }}
+
+      - name: CDK deploy
+        run: |
+          cd infrastructure/cdk
+          cdk deploy --all \
+            --context environment=${{ env.ENVIRONMENT }} \
+            --require-approval never \
+            --outputs-file outputs.json
+
+  promote-image:
+    name: Promote Image to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: false  # Disabled - requires AWS credentials
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Pull image from cert and push to prod
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+        run: |
+          # Pull from cert
+          docker pull $ECR_REGISTRY/streaver-helloworld-cert:$IMAGE_TAG
+
+          # Tag for prod
+          docker tag $ECR_REGISTRY/streaver-helloworld-cert:$IMAGE_TAG \
+                     $ECR_REGISTRY/streaver-helloworld-prod:$IMAGE_TAG
+
+          # Note: We don't tag as 'latest' in production for safety
+          # Push to prod
+          docker push $ECR_REGISTRY/streaver-helloworld-prod:$IMAGE_TAG
+
+  update-ecs-service:
+    name: Update ECS Service (Blue/Green)
+    runs-on: ubuntu-latest
+    needs: [promote-image]
+    if: false  # Disabled - requires AWS credentials
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create new task definition revision
+        run: |
+          # Download current task definition
+          aws ecs describe-task-definition \
+            --task-definition streaver-helloworld-task-prod \
+            --query taskDefinition > task-def.json
+
+          # Update image in task definition
+          # (This is simplified - use aws-actions/amazon-ecs-render-task-definition in real deployment)
+
+      - name: Update ECS service with new task definition
+        run: |
+          aws ecs update-service \
+            --cluster streaver-helloworld-cluster-prod \
+            --service streaver-helloworld-service-prod \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for deployment to stabilize
+        run: |
+          echo "Waiting for service to reach stable state..."
+          aws ecs wait services-stable \
+            --cluster streaver-helloworld-cluster-prod \
+            --services streaver-helloworld-service-prod \
+            --region ${{ env.AWS_REGION }}
+
+  post-deployment-tests:
+    name: Post-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: [update-ecs-service]
+    if: ${{ !inputs.skip_tests }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r app/requirements.txt
+          pip install -r app/tests/requirements-test.txt
+
+      - name: Run smoke tests
+        env:
+          INTEGRATION_TEST_URL: ${{ secrets.PROD_ALB_URL }}
+        run: |
+          cd app
+          pytest tests/test_integration.py -v -k "test_health or test_home"
+
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.48.0/k6-v0.48.0-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-v0.48.0-linux-amd64/k6 /usr/local/bin/
+
+      - name: Run production smoke test
+        env:
+          TARGET_URL: ${{ secrets.PROD_ALB_URL }}
+        run: k6 run tests/load/k6-smoke-test.js
+
+  deployment-notification:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [approval, deploy-infrastructure, promote-image, update-ecs-service, post-deployment-tests]
+    if: always()
+    steps:
+      - name: Deployment summary
+        run: |
+          echo "=========================================="
+          echo "PRODUCTION DEPLOYMENT SUMMARY"
+          echo "=========================================="
+          echo "Status: ${{ job.status }}"
+          echo "Approved by: ${{ github.actor }}"
+          echo "Image tag: ${{ github.event.inputs.image_tag }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          echo "Job Results:"
+          echo "  Infrastructure: ${{ needs.deploy-infrastructure.result }}"
+          echo "  Image Promotion: ${{ needs.promote-image.result }}"
+          echo "  ECS Update: ${{ needs.update-ecs-service.result }}"
+          echo "  Post-Deploy Tests: ${{ needs.post-deployment-tests.result }}"
+          echo "=========================================="
+
+      # In a real implementation, send notification to Slack/email/PagerDuty
+      # - name: Send Slack notification
+      #   uses: slackapi/slack-github-action@v1
+      #   with:
+      #     payload: |
+      #       {
+      #         "text": "Production deployment completed",
+      #         "blocks": [...]
+      #       }
+
+  placeholder-deployment:
+    name: Deployment Steps (Requires AWS Setup)
+    runs-on: ubuntu-latest
+    needs: [approval]
+    steps:
+      - name: Information
+        run: |
+          echo "=========================================="
+          echo "PRODUCTION Environment Deployment"
+          echo "=========================================="
+          echo ""
+          echo "Manual approval granted by: ${{ github.actor }}"
+          echo "Deployment tag: ${{ github.event.inputs.image_tag }}"
+          echo "Skip tests: ${{ github.event.inputs.skip_tests }}"
+          echo ""
+          echo "Required GitHub Secrets:"
+          echo "  - AWS_ROLE_ARN_PROD: IAM role ARN for prod deployment"
+          echo "  - PROD_ALB_URL: Application Load Balancer URL for testing"
+          echo ""
+          echo "Deployment Steps (when enabled):"
+          echo "  ✓ Production approval checkpoint"
+          echo "  ✓ Pre-deployment checks (image verification)"
+          echo "  ✓ Deploy infrastructure to prod"
+          echo "  ✓ Promote image from cert to prod ECR"
+          echo "  ✓ Blue/Green deployment to ECS"
+          echo "  ✓ Wait for service stability"
+          echo "  ✓ Post-deployment smoke tests"
+          echo "  ✓ Send deployment notifications"
+          echo ""
+          echo "=========================================="

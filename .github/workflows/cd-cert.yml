@@ -1,0 +1,212 @@
+name: CD - Deploy to Cert (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy (leave empty for latest)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  ENVIRONMENT: cert
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  approval:
+    name: Manual Approval Required
+    runs-on: ubuntu-latest
+    environment:
+      name: cert
+      url: https://console.aws.amazon.com/ecs/
+    steps:
+      - name: Approval checkpoint
+        run: |
+          echo "Deployment to CERT environment approved"
+          echo "Approver: ${{ github.actor }}"
+          echo "Image tag: ${{ github.event.inputs.image_tag || 'latest' }}"
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure to Cert
+    runs-on: ubuntu-latest
+    needs: [approval]
+    if: false  # Disabled - requires AWS credentials
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_CERT }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install CDK
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        run: |
+          cd infrastructure/cdk
+          pip install -r requirements.txt
+
+      - name: CDK deploy
+        run: |
+          cd infrastructure/cdk
+          cdk deploy --all \
+            --context environment=${{ env.ENVIRONMENT }} \
+            --require-approval never \
+            --outputs-file outputs.json
+
+  promote-image:
+    name: Promote Image to Cert
+    runs-on: ubuntu-latest
+    needs: [approval, deploy-infrastructure]
+    if: false  # Disabled - requires AWS credentials
+    outputs:
+      image-tag: ${{ steps.image-info.outputs.tag }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_CERT }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Determine image tag
+        id: image-info
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="latest"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Using image tag: $TAG"
+
+      - name: Pull image from dev and push to cert
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.image-info.outputs.tag }}
+        run: |
+          # Pull from dev
+          docker pull $ECR_REGISTRY/streaver-helloworld-dev:$IMAGE_TAG
+
+          # Tag for cert
+          docker tag $ECR_REGISTRY/streaver-helloworld-dev:$IMAGE_TAG \
+                     $ECR_REGISTRY/streaver-helloworld-cert:$IMAGE_TAG
+
+          docker tag $ECR_REGISTRY/streaver-helloworld-dev:$IMAGE_TAG \
+                     $ECR_REGISTRY/streaver-helloworld-cert:latest
+
+          # Push to cert
+          docker push $ECR_REGISTRY/streaver-helloworld-cert:$IMAGE_TAG
+          docker push $ECR_REGISTRY/streaver-helloworld-cert:latest
+
+  update-ecs-service:
+    name: Update ECS Service
+    runs-on: ubuntu-latest
+    needs: [promote-image]
+    if: false  # Disabled - requires AWS credentials
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_CERT }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster streaver-helloworld-cluster-cert \
+            --service streaver-helloworld-service-cert \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster streaver-helloworld-cluster-cert \
+            --services streaver-helloworld-service-cert \
+            --region ${{ env.AWS_REGION }}
+
+  run-tests:
+    name: Run Tests on Cert
+    runs-on: ubuntu-latest
+    needs: [update-ecs-service]
+    if: false  # Disabled - requires deployed environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r app/requirements.txt
+          pip install -r app/tests/requirements-test.txt
+
+      - name: Run integration tests
+        env:
+          INTEGRATION_TEST_URL: ${{ secrets.CERT_ALB_URL }}
+        run: |
+          cd app
+          pytest tests/test_integration.py -v
+
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.48.0/k6-v0.48.0-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-v0.48.0-linux-amd64/k6 /usr/local/bin/
+
+      - name: Run load test
+        env:
+          TARGET_URL: ${{ secrets.CERT_ALB_URL }}
+        run: k6 run tests/load/k6-load-test.js
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-results-cert
+          path: tests/load/k6-results.json
+
+  placeholder-deployment:
+    name: Deployment Steps (Requires AWS Setup)
+    runs-on: ubuntu-latest
+    needs: [approval]
+    steps:
+      - name: Information
+        run: |
+          echo "=========================================="
+          echo "CERT Environment Deployment"
+          echo "=========================================="
+          echo ""
+          echo "Manual approval granted by: ${{ github.actor }}"
+          echo "Deployment tag: ${{ github.event.inputs.image_tag || 'latest' }}"
+          echo ""
+          echo "Required GitHub Secrets:"
+          echo "  - AWS_ROLE_ARN_CERT: IAM role ARN for cert deployment"
+          echo "  - CERT_ALB_URL: Application Load Balancer URL for testing"
+          echo ""
+          echo "Deployment Steps (when enabled):"
+          echo "  ✓ Manual approval checkpoint"
+          echo "  ✓ Deploy infrastructure to cert"
+          echo "  ✓ Promote image from dev to cert ECR"
+          echo "  ✓ Update ECS service"
+          echo "  ✓ Run integration tests"
+          echo "  ✓ Run full load tests"
+          echo ""
+          echo "=========================================="

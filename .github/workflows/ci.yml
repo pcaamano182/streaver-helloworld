@@ -1,0 +1,285 @@
+name: CI - Continuous Integration
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  lint-and-format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ruff pylint
+
+      - name: Run Ruff linter
+        run: ruff check app/ --output-format=github
+        continue-on-error: true
+
+      - name: Check Python formatting
+        run: ruff format app/ --check
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r app/requirements.txt
+          pip install -r app/tests/requirements-test.txt
+
+      - name: Run unit tests with coverage
+        run: |
+          cd app
+          pytest tests/test_unit.py -v --cov=. --cov-report=xml --cov-report=term
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./app/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install security tools
+        run: |
+          pip install --upgrade pip
+          pip install bandit safety
+
+      - name: Run Bandit security scan
+        run: |
+          bandit -r app/ -c tests/security/.bandit -f json -o bandit-report.json
+          bandit -r app/ -c tests/security/.bandit -f screen
+        continue-on-error: true
+
+      - name: Run Safety dependency check
+        run: |
+          safety check --file app/requirements.txt --json || true
+          safety check --file app/requirements.txt
+        continue-on-error: true
+
+      - name: Upload Bandit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  docker-build:
+    name: Docker Build and Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: streaver-helloworld:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: streaver-helloworld:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Run container smoke test
+        run: |
+          docker run -d --name test-container -p 5000:5000 streaver-helloworld:${{ github.sha }}
+          sleep 5
+          curl -f http://localhost:5000/health || exit 1
+          docker stop test-container
+          docker rm test-container
+
+  validate-cdk:
+    name: Validate AWS CDK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Set up Node.js for CDK
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Install Python dependencies
+        run: |
+          cd infrastructure/cdk
+          pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run CDK unit tests
+        run: |
+          cd infrastructure/cdk
+          pytest tests/ -v
+
+      - name: CDK synth for all environments
+        run: |
+          cd infrastructure/cdk
+          for env in dev cert prod; do
+            echo "Synthesizing for $env..."
+            ENVIRONMENT=$env python app.py
+          done
+
+  validate-terraform:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform Format Check
+        run: |
+          cd infrastructure/terraform
+          terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: |
+          cd infrastructure/terraform
+          terraform init -backend=false
+
+      - name: Terraform Validate
+        run: |
+          cd infrastructure/terraform
+          terraform validate
+
+      - name: Terraform Plan (Dev)
+        run: |
+          cd infrastructure/terraform
+          terraform plan -var-file=environments/dev.tfvars -out=/dev/null
+        continue-on-error: true
+
+  iac-security-scan:
+    name: IaC Security Scan (Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Run Checkov on Terraform
+        run: |
+          checkov -d infrastructure/terraform \
+            --config-file tests/security/.checkov.yaml \
+            --compact \
+            --output-file-path console,checkov-terraform.json
+        continue-on-error: true
+
+      - name: Upload Checkov results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: checkov-reports
+          path: |
+            checkov-terraform.json
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, unit-tests, security-scan, docker-build, validate-cdk, validate-terraform, iac-security-scan]
+    if: always()
+    steps:
+      - name: Check job results
+        run: |
+          echo "Lint and Format: ${{ needs.lint-and-format.result }}"
+          echo "Unit Tests: ${{ needs.unit-tests.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "Docker Build: ${{ needs.docker-build.result }}"
+          echo "Validate CDK: ${{ needs.validate-cdk.result }}"
+          echo "Validate Terraform: ${{ needs.validate-terraform.result }}"
+          echo "IaC Security: ${{ needs.iac-security-scan.result }}"
+
+      - name: Set final status
+        run: |
+          if [[ "${{ needs.lint-and-format.result }}" != "success" ]] || \
+             [[ "${{ needs.unit-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.docker-build.result }}" != "success" ]] || \
+             [[ "${{ needs.validate-cdk.result }}" != "success" ]] || \
+             [[ "${{ needs.validate-terraform.result }}" != "success" ]]; then
+            echo "CI checks failed"
+            exit 1
+          fi
+          echo "All CI checks passed!"
