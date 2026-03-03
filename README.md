@@ -125,7 +125,7 @@ safety check -r requirements.txt
 docker run --rm -i grafana/k6 run --vus 10 --duration 30s - < tests/load/k6-smoke-test.js
 ```
 
-## 🔧 Deployment with AWS CDK
+## Deployment with AWS CDK
 
 ### Initial Setup
 
@@ -143,6 +143,8 @@ cdk bootstrap aws://ACCOUNT-ID/us-east-1
 # Validate stack synthesis
 cdk synth -c environment=dev
 ```
+
+**Note on CDK Context**: The repository includes a `cdk.context.json` file with pre-cached availability zone lookups. This allows CDK synthesis to work in CI/CD pipelines without AWS credentials. In a real deployment, CDK would automatically fetch and cache the actual AZs from your AWS account. See [ASSUMPTIONS.md](ASSUMPTIONS.md#6-cdk-context-for-cicd-without-aws-credentials) for details.
 
 ### Deploy to Development
 

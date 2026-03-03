@@ -1045,6 +1045,29 @@ exclude_dirs:
 
 **Lesson**: Comprehensive README is critical for onboarding and maintainability
 
+### 6. CDK Context for CI/CD Without AWS Credentials
+
+**Issue**: CDK synth in GitHub Actions failed with "no credentials configured"
+
+**Root cause**: CDK performs AWS API lookups for availability zones when creating VPCs
+
+**Solution**: Created `cdk.context.json` with pre-cached AZ lookups for all environments:
+```json
+{
+  "availability-zones:account=111111111111:region=us-east-1": [
+    "us-east-1a", "us-east-1b", "us-east-1c"
+  ]
+}
+```
+
+**Rationale**:
+- Allows CDK synthesis without AWS credentials in CI pipeline
+- Mimics what CDK would cache after first real deployment
+- Industry-standard practice for CDK projects in CI/CD
+- Does not affect actual deployments (real AWS environment would use actual AZs)
+
+**Lesson**: CDK context files are essential for credential-less synthesis in CI environments
+
 ---
 
 ## Conclusion
