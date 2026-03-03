@@ -1,0 +1,62 @@
+# Production Environment Configuration
+environment: prod
+account_id: "333333333333"  # Replace with actual AWS account ID
+region: us-east-1
+
+# Networking Configuration
+vpc:
+  cidr: "10.2.0.0/16"
+  max_azs: 2
+  nat_gateways: 1  # Should be 2 for production HA (cost consideration)
+
+# ECS Configuration
+ecs:
+  cluster_name: streaver-helloworld-prod
+  service_name: streaver-app-prod
+  task:
+    cpu: 1024  # 1 vCPU
+    memory: 2048  # 2 GB
+    desired_count: 2
+    min_capacity: 2
+    max_capacity: 10
+  container:
+    name: streaver-app
+    port: 5000
+    log_retention_days: 30
+
+# Auto Scaling Configuration
+autoscaling:
+  cpu:
+    target_utilization: 70
+    scale_in_cooldown: 300
+    scale_out_cooldown: 60
+  memory:
+    target_utilization: 80
+    scale_in_cooldown: 300
+    scale_out_cooldown: 60
+
+# Load Balancer Configuration
+alb:
+  name: streaver-alb-prod
+  health_check:
+    path: /health
+    interval: 30
+    timeout: 5
+    healthy_threshold: 2
+    unhealthy_threshold: 3
+
+# Monitoring Configuration
+monitoring:
+  alarm_email: "devops@example.com"  # Replace with actual email
+  alarms:
+    cpu_threshold: 90
+    memory_threshold: 90
+    error_rate_threshold: 3  # percentage
+    target_response_time_p99: 1000  # milliseconds
+
+# Tags
+tags:
+  Project: "Streaver-Challenge"
+  Environment: "prod"
+  ManagedBy: "CDK"
+  CostCenter: "Engineering"

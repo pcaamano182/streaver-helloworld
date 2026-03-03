@@ -1,0 +1,62 @@
+# Certification Environment Configuration
+environment: cert
+account_id: "222222222222"  # Replace with actual AWS account ID
+region: us-east-1
+
+# Networking Configuration
+vpc:
+  cidr: "10.1.0.0/16"
+  max_azs: 2
+  nat_gateways: 1  # Can be increased to 2 for higher availability
+
+# ECS Configuration
+ecs:
+  cluster_name: streaver-helloworld-cert
+  service_name: streaver-app-cert
+  task:
+    cpu: 1024  # 1 vCPU
+    memory: 2048  # 2 GB
+    desired_count: 2
+    min_capacity: 2
+    max_capacity: 8
+  container:
+    name: streaver-app
+    port: 5000
+    log_retention_days: 14
+
+# Auto Scaling Configuration
+autoscaling:
+  cpu:
+    target_utilization: 70
+    scale_in_cooldown: 300
+    scale_out_cooldown: 60
+  memory:
+    target_utilization: 80
+    scale_in_cooldown: 300
+    scale_out_cooldown: 60
+
+# Load Balancer Configuration
+alb:
+  name: streaver-alb-cert
+  health_check:
+    path: /health
+    interval: 30
+    timeout: 5
+    healthy_threshold: 2
+    unhealthy_threshold: 3
+
+# Monitoring Configuration
+monitoring:
+  alarm_email: "devops@example.com"  # Replace with actual email
+  alarms:
+    cpu_threshold: 90
+    memory_threshold: 90
+    error_rate_threshold: 5  # percentage
+    target_response_time_p99: 1000  # milliseconds
+
+# Tags
+tags:
+  Project: "Streaver-Challenge"
+  Environment: "cert"
+  ManagedBy: "CDK"
+  CostCenter: "Engineering"

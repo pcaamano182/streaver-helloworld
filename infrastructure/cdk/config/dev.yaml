@@ -1,0 +1,62 @@
+# Development Environment Configuration
+environment: dev
+account_id: "111111111111"  # Replace with actual AWS account ID
+region: us-east-1
+
+# Networking Configuration
+vpc:
+  cidr: "10.0.0.0/16"
+  max_azs: 2
+  nat_gateways: 1  # Cost optimization for dev
+
+# ECS Configuration
+ecs:
+  cluster_name: streaver-helloworld-dev
+  service_name: streaver-app-dev
+  task:
+    cpu: 512  # 0.5 vCPU
+    memory: 1024  # 1 GB
+    desired_count: 1
+    min_capacity: 1
+    max_capacity: 5
+  container:
+    name: streaver-app
+    port: 5000
+    log_retention_days: 7
+
+# Auto Scaling Configuration
+autoscaling:
+  cpu:
+    target_utilization: 70
+    scale_in_cooldown: 300
+    scale_out_cooldown: 60
+  memory:
+    target_utilization: 80
+    scale_in_cooldown: 300
+    scale_out_cooldown: 60
+
+# Load Balancer Configuration
+alb:
+  name: streaver-alb-dev
+  health_check:
+    path: /health
+    interval: 30
+    timeout: 5
+    healthy_threshold: 2
+    unhealthy_threshold: 3
+
+# Monitoring Configuration
+monitoring:
+  alarm_email: "devops@example.com"  # Replace with actual email
+  alarms:
+    cpu_threshold: 90
+    memory_threshold: 90
+    error_rate_threshold: 10  # percentage
+    target_response_time_p99: 1000  # milliseconds
+
+# Tags
+tags:
+  Project: "Streaver-Challenge"
+  Environment: "dev"
+  ManagedBy: "CDK"
+  CostCenter: "Engineering"
