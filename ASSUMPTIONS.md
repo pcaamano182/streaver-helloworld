@@ -2,12 +2,14 @@
 
 This document details all architectural decisions, assumptions, and trade-offs made during the implementation of the Streaver technical challenge.
 
+**Challenge Context**: This document provides the rationale and decision-making process for implementing the solution to the DevOps/SRE challenge requirements specified in [CHALLENGE.md](CHALLENGE.md). All architectural choices were made to address the core challenge objectives: production-ready infrastructure, resilience, observability, security, and automation.
+
 ## General Context
 
 ### Challenge Constraints
 
 1. **No access to real AWS environment**: All development and validation was performed locally
-2. **Dual IaC requirement**: Implementation in both CDK and Terraform
+2. **Dual IaC requirement**: Implementation in both CDK and Terraform (CDK was required, Terraform added for completeness)
 3. **Limited timeline**: Prioritization of core features over advanced optimizations
 4. **Demo/Portfolio purpose**: Balance between simplicity and best practices
 

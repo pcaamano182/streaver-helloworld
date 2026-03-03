@@ -4,6 +4,8 @@
 
 This project is a complete solution for the Senior DevOps/SRE technical challenge at Streaver. It implements a containerized Flask web application with Infrastructure as Code (IaC) using both AWS CDK and Terraform, following industry best practices for security, scalability, and observability.
 
+**Challenge Requirements**: This solution addresses all requirements specified in [CHALLENGE.md](CHALLENGE.md), including containerized application deployment, infrastructure automation, resilience, observability, security, and CI/CD pipelines.
+
 ### Key Features
 
 - **Flask Application** with health, error, and metrics endpoints
