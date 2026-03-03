@@ -12,19 +12,19 @@ from datetime import datetime
 
 # Check if integration tests should run
 # Set INTEGRATION_TEST_URL environment variable to the deployed app URL
-INTEGRATION_TEST_URL = os.getenv('INTEGRATION_TEST_URL', None)
+INTEGRATION_TEST_URL = os.getenv("INTEGRATION_TEST_URL", None)
 
 # Skip all integration tests if no URL is provided
 pytestmark = pytest.mark.skipif(
     INTEGRATION_TEST_URL is None,
-    reason="Integration tests require INTEGRATION_TEST_URL environment variable"
+    reason="Integration tests require INTEGRATION_TEST_URL environment variable",
 )
 
 
 @pytest.fixture
 def base_url():
     """Return the base URL for integration tests."""
-    return INTEGRATION_TEST_URL.rstrip('/')
+    return INTEGRATION_TEST_URL.rstrip("/")
 
 
 class TestIntegrationHomeEndpoint:
@@ -38,7 +38,7 @@ class TestIntegrationHomeEndpoint:
     def test_home_endpoint_returns_json(self, base_url):
         """Test that home endpoint returns JSON content."""
         response = requests.get(f"{base_url}/", timeout=10)
-        assert response.headers['Content-Type'] == 'application/json'
+        assert response.headers["Content-Type"] == "application/json"
         data = response.json()
         assert isinstance(data, dict)
 
@@ -46,11 +46,11 @@ class TestIntegrationHomeEndpoint:
         """Test that home endpoint has expected response structure."""
         response = requests.get(f"{base_url}/", timeout=10)
         data = response.json()
-        assert 'message' in data
-        assert 'service' in data
-        assert 'version' in data
-        assert 'timestamp' in data
-        assert 'endpoints' in data
+        assert "message" in data
+        assert "service" in data
+        assert "version" in data
+        assert "timestamp" in data
+        assert "endpoints" in data
 
 
 class TestIntegrationHealthEndpoint:
@@ -65,15 +65,15 @@ class TestIntegrationHealthEndpoint:
         """Test that health endpoint returns healthy status."""
         response = requests.get(f"{base_url}/health", timeout=10)
         data = response.json()
-        assert data['status'] == 'healthy'
+        assert data["status"] == "healthy"
 
     def test_health_endpoint_has_timestamp(self, base_url):
         """Test that health endpoint returns timestamp."""
         response = requests.get(f"{base_url}/health", timeout=10)
         data = response.json()
-        assert 'timestamp' in data
+        assert "timestamp" in data
         # Validate timestamp is recent (within last minute)
-        timestamp = datetime.fromisoformat(data['timestamp'].replace('Z', '+00:00'))
+        timestamp = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
         now = datetime.utcnow()
         diff = (now - timestamp.replace(tzinfo=None)).total_seconds()
         assert abs(diff) < 60  # Within 1 minute
@@ -96,16 +96,16 @@ class TestIntegrationErrorEndpoint:
     def test_error_endpoint_returns_json(self, base_url):
         """Test that error endpoint returns JSON."""
         response = requests.get(f"{base_url}/error", timeout=10)
-        assert response.headers['Content-Type'] == 'application/json'
+        assert response.headers["Content-Type"] == "application/json"
         data = response.json()
-        assert 'error' in data
+        assert "error" in data
 
     def test_error_endpoint_has_descriptive_message(self, base_url):
         """Test that error endpoint has descriptive error message."""
         response = requests.get(f"{base_url}/error", timeout=10)
         data = response.json()
-        assert 'message' in data
-        assert 'intentional' in data['message'].lower()
+        assert "message" in data
+        assert "intentional" in data["message"].lower()
 
 
 class TestIntegrationMetricsEndpoint:
@@ -120,18 +120,18 @@ class TestIntegrationMetricsEndpoint:
         """Test that metrics endpoint returns metrics data."""
         response = requests.get(f"{base_url}/metrics", timeout=10)
         data = response.json()
-        assert 'metrics' in data
-        metrics = data['metrics']
-        assert 'total_requests' in metrics
-        assert 'successful_requests' in metrics
-        assert 'error_requests' in metrics
+        assert "metrics" in data
+        metrics = data["metrics"]
+        assert "total_requests" in metrics
+        assert "successful_requests" in metrics
+        assert "error_requests" in metrics
 
     def test_metrics_increment_after_requests(self, base_url):
         """Test that metrics increment after making requests."""
         # Get initial metrics
         response1 = requests.get(f"{base_url}/metrics", timeout=10)
         data1 = response1.json()
-        initial_total = data1['metrics']['total_requests']
+        initial_total = data1["metrics"]["total_requests"]
 
         # Make some requests
         requests.get(f"{base_url}/", timeout=10)
@@ -140,7 +140,7 @@ class TestIntegrationMetricsEndpoint:
         # Get metrics again
         response2 = requests.get(f"{base_url}/metrics", timeout=10)
         data2 = response2.json()
-        new_total = data2['metrics']['total_requests']
+        new_total = data2["metrics"]["total_requests"]
 
         # Total should have increased
         assert new_total > initial_total
@@ -149,8 +149,8 @@ class TestIntegrationMetricsEndpoint:
         """Test that uptime is a positive number."""
         response = requests.get(f"{base_url}/metrics", timeout=10)
         data = response.json()
-        assert 'uptime_seconds' in data
-        assert data['uptime_seconds'] > 0
+        assert "uptime_seconds" in data
+        assert data["uptime_seconds"] > 0
 
 
 class TestIntegrationLoadBalancer:
@@ -173,7 +173,9 @@ class TestIntegrationLoadBalancer:
         # Make 10 concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(make_request) for _ in range(10)]
-            results = [future.result() for future in concurrent.futures.as_completed(futures)]
+            results = [
+                future.result() for future in concurrent.futures.as_completed(futures)
+            ]
 
         # All requests should succeed
         assert all(status == 200 for status in results)
@@ -191,7 +193,7 @@ class TestIntegrationEndToEnd:
         # 2. Check health
         response = requests.get(f"{base_url}/health", timeout=10)
         assert response.status_code == 200
-        assert response.json()['status'] == 'healthy'
+        assert response.json()["status"] == "healthy"
 
         # 3. Trigger error endpoint
         response = requests.get(f"{base_url}/error", timeout=10)
@@ -200,14 +202,14 @@ class TestIntegrationEndToEnd:
         # 4. Check metrics reflect the error
         response = requests.get(f"{base_url}/metrics", timeout=10)
         data = response.json()
-        assert data['metrics']['error_requests'] > 0
-        assert data['metrics']['error_rate_percentage'] > 0
+        assert data["metrics"]["error_requests"] > 0
+        assert data["metrics"]["error_rate_percentage"] > 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if INTEGRATION_TEST_URL:
         print(f"Running integration tests against: {INTEGRATION_TEST_URL}")
-        pytest.main([__file__, '-v'])
+        pytest.main([__file__, "-v"])
     else:
         print("Skipping integration tests: INTEGRATION_TEST_URL not set")
         print("Set INTEGRATION_TEST_URL environment variable to run integration tests")

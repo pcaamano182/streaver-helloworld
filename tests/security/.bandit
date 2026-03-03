@@ -1,18 +1,10 @@
 # Bandit configuration for Python security scanning
-# https://bandit.readthedocs.io/en/latest/config.html
+# Documentation: https://bandit.readthedocs.io/en/latest/config.html
+#
+# Usage: bandit -r app/ -c tests/security/.bandit
 
-[bandit]
-# Exclude test files from scanning
-exclude_dirs = ['/tests/', '/.venv/', '/venv/', '__pycache__']
-
-# Test IDs to skip
-skips = []
-
-# Test IDs to include (empty means all)
-tests = []
-
-# Severity level threshold (LOW, MEDIUM, HIGH)
-level = LOW
-
-# Confidence level threshold (LOW, MEDIUM, HIGH)
-confidence = MEDIUM
+exclude_dirs:
+  - '/tests/'
+  - '/.venv/'
+  - '/venv/'
+  - '/__pycache__/'

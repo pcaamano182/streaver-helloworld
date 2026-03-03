@@ -189,7 +189,7 @@ jobs:
           cd infrastructure/cdk
           for env in dev cert prod; do
             echo "Synthesizing for $env..."
-            ENVIRONMENT=$env python app.py
+            cdk synth -c environment=$env
           done
 
   validate-terraform:
