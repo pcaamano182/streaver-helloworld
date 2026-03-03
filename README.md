@@ -1,21 +1,21 @@
 # Streaver Hello World - DevOps Challenge
 
-## Descripción del Proyecto
+## Project Description
 
-Este proyecto es una solución completa para el desafío técnico de DevOps/SRE Senior en Streaver. Implementa una aplicación web containerizada en Flask con infraestructura como código (IaC) utilizando tanto AWS CDK como Terraform, siguiendo las mejores prácticas de la industria para seguridad, escalabilidad y observabilidad.
+This project is a complete solution for the Senior DevOps/SRE technical challenge at Streaver. It implements a containerized Flask web application with Infrastructure as Code (IaC) using both AWS CDK and Terraform, following industry best practices for security, scalability, and observability.
 
-### Características Principales
+### Key Features
 
-- **Aplicación Flask** con endpoints de health, error y metrics
-- **Infraestructura como Código** dual: AWS CDK (Python) y Terraform
-- **Multi-ambiente**: configuraciones separadas para dev, cert y prod
-- **Testing comprehensivo**: unit tests, load tests, security scanning
-- **CI/CD con GitHub Actions**: pipelines automatizados de integración y despliegue
-- **Observabilidad**: logging estructurado, métricas CloudWatch, alarmas y dashboards
-- **Seguridad**: escaneo con Bandit, Safety, Checkov y Trivy
-- **Alta disponibilidad**: Auto-scaling, health checks, circuit breakers
+- **Flask Application** with health, error, and metrics endpoints
+- **Dual Infrastructure as Code**: AWS CDK (Python) and Terraform
+- **Multi-environment**: separate configurations for dev, cert, and prod
+- **Comprehensive testing**: unit tests, load tests, security scanning
+- **CI/CD with GitHub Actions**: automated integration and deployment pipelines
+- **Observability**: structured logging, CloudWatch metrics, alarms, and dashboards
+- **Security**: scanning with Bandit, Safety, Checkov, and Trivy
+- **High availability**: Auto-scaling, health checks, circuit breakers
 
-## Arquitectura
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -46,128 +46,128 @@ Este proyecto es una solución completa para el desafío técnico de DevOps/SRE 
               └────────────────┘
 ```
 
-### Stack Tecnológico
+### Technology Stack
 
-- **Aplicación**: Python 3.11, Flask, Gunicorn
-- **Containerización**: Docker multi-stage
+- **Application**: Python 3.11, Flask, Gunicorn
+- **Containerization**: Multi-stage Docker
 - **IaC**: AWS CDK (Python), Terraform
-- **Servicios AWS**: ECS Fargate, ECR, ALB, VPC, CloudWatch, SNS
+- **AWS Services**: ECS Fargate, ECR, ALB, VPC, CloudWatch, SNS
 - **Testing**: pytest, k6, Bandit, Safety, Checkov, Trivy
-- **CI/CD**: GitHub Actions con OIDC
+- **CI/CD**: GitHub Actions with OIDC
 
 ## Quick Start
 
-### Prerrequisitos
+### Prerequisites
 
 ```bash
-# Software requerido
+# Required software
 - Python 3.11+
 - Docker
-- Node.js 18+ (para CDK)
+- Node.js 18+ (for CDK)
 - Terraform 1.5+
-- AWS CLI configurado
+- AWS CLI configured
 - Git
 ```
 
-### 1. Clonar el Repositorio
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/pcaamano182/streaver-helloworld.git
 cd streaver-helloworld
 ```
 
-### 2. Ejecutar Localmente con Docker
+### 2. Run Locally with Docker
 
 ```bash
-# Build de la imagen
+# Build the image
 docker build -t streaver-helloworld:latest .
 
-# Ejecutar el container
+# Run the container
 docker run -d -p 5000:5000 --name streaver-app streaver-helloworld:latest
 
-# Probar endpoints
+# Test endpoints
 curl http://localhost:5000/
 curl http://localhost:5000/health
 curl http://localhost:5000/metrics
-curl http://localhost:5000/error  # Devuelve 500 intencionalmente
+curl http://localhost:5000/error  # Returns 500 intentionally
 
-# Ver logs
+# View logs
 docker logs -f streaver-app
 
-# Detener y limpiar
+# Stop and cleanup
 docker stop streaver-app
 docker rm streaver-app
 ```
 
-### 3. Ejecutar Tests Locales
+### 3. Run Local Tests
 
 ```bash
-# Crear ambiente virtual
+# Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Instalar dependencias
+# Install dependencies
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 
 # Unit tests (32 tests)
 pytest app/tests/ -v
 
-# Security scan con Bandit
+# Security scan with Bandit
 bandit -r app/ -c tests/security/.bandit
 
-# Dependency scan con Safety
+# Dependency scan with Safety
 safety check -r requirements.txt
 
-# Load tests con k6 (requiere Docker corriendo)
+# Load tests with k6 (requires Docker running)
 docker run --rm -i grafana/k6 run --vus 10 --duration 30s - < tests/load/k6-smoke-test.js
 ```
 
-## 🔧 Despliegue con AWS CDK
+## 🔧 Deployment with AWS CDK
 
-### Setup Inicial
+### Initial Setup
 
 ```bash
 cd infrastructure/cdk
 
-# Instalar dependencias de CDK
+# Install CDK dependencies
 pip install -r requirements.txt
 npm install -g aws-cdk
 
-# Bootstrap CDK (primera vez por ambiente/región)
+# Bootstrap CDK (first time per environment/region)
 export AWS_PROFILE=dev
 cdk bootstrap aws://ACCOUNT-ID/us-east-1
 
-# Validar síntesis de stacks
+# Validate stack synthesis
 cdk synth -c environment=dev
 ```
 
-### Deploy a Desarrollo
+### Deploy to Development
 
 ```bash
-# Configurar credenciales AWS para dev
+# Configure AWS credentials for dev
 export AWS_PROFILE=dev
 
-# Deploy todas las stacks
+# Deploy all stacks
 cdk deploy --all -c environment=dev --require-approval never
 
-# Deploy stack específico
+# Deploy specific stack
 cdk deploy StreamerHelloWorldNetwork-dev -c environment=dev
 cdk deploy StreamerHelloWorldEcs-dev -c environment=dev
 cdk deploy StreamerHelloWorldMonitoring-dev -c environment=dev
 
-# Ver outputs (ALB URL, etc.)
+# View outputs (ALB URL, etc.)
 cdk outputs --all -c environment=dev
 ```
 
-### Deploy a Certificación
+### Deploy to Certification
 
 ```bash
 export AWS_PROFILE=cert
 cdk deploy --all -c environment=cert
 ```
 
-### Deploy a Producción
+### Deploy to Production
 
 ```bash
 export AWS_PROFILE=prod
@@ -177,52 +177,52 @@ cdk deploy --all -c environment=prod
 ### Destroy (Cleanup)
 
 ```bash
-# CUIDADO: Esto elimina toda la infraestructura
+# WARNING: This deletes all infrastructure
 cdk destroy --all -c environment=dev
 
-# Eliminar en orden inverso (recomendado)
+# Delete in reverse order (recommended)
 cdk destroy StreamerHelloWorldMonitoring-dev -c environment=dev
 cdk destroy StreamerHelloWorldEcs-dev -c environment=dev
 cdk destroy StreamerHelloWorldNetwork-dev -c environment=dev
 ```
 
-## 🔧 Despliegue con Terraform
+## 🔧 Deployment with Terraform
 
-### Setup Inicial
+### Initial Setup
 
 ```bash
 cd infrastructure/terraform
 
-# Inicializar Terraform
+# Initialize Terraform
 terraform init
 
-# Validar configuración
+# Validate configuration
 terraform validate
 
-# Formatear archivos
+# Format files
 terraform fmt -recursive
 ```
 
-### Deploy a Desarrollo
+### Deploy to Development
 
 ```bash
-# Plan (revisar cambios)
+# Plan (review changes)
 terraform plan -var-file=environments/dev.tfvars
 
-# Apply (ejecutar cambios)
+# Apply (execute changes)
 terraform apply -var-file=environments/dev.tfvars
 
-# Ver outputs (ALB URL, etc.)
+# View outputs (ALB URL, etc.)
 terraform output
 ```
 
-### Deploy a Certificación
+### Deploy to Certification
 
 ```bash
 terraform apply -var-file=environments/cert.tfvars
 ```
 
-### Deploy a Producción
+### Deploy to Production
 
 ```bash
 terraform apply -var-file=environments/prod.tfvars
@@ -231,35 +231,35 @@ terraform apply -var-file=environments/prod.tfvars
 ### Destroy (Cleanup)
 
 ```bash
-# CUIDADO: Esto elimina toda la infraestructura
+# WARNING: This deletes all infrastructure
 terraform destroy -var-file=environments/dev.tfvars
 ```
 
-## Monitoreo y Observabilidad
+## Monitoring and Observability
 
 ### CloudWatch Alarms
 
-El stack de monitoring crea automáticamente las siguientes alarmas:
+The monitoring stack automatically creates the following alarms:
 
-- **CPU alta**: >80% durante 5 minutos → notificación SNS
-- **Memoria alta**: >80% durante 5 minutos → notificación SNS
-- **5XX Errors**: >10 errores en 5 minutos → notificación SNS
-- **Response Time**: p99 >1s durante 5 minutos → notificación SNS
-- **Unhealthy Targets**: <2 targets healthy → notificación SNS
+- **High CPU**: >80% for 5 minutes → SNS notification
+- **High Memory**: >80% for 5 minutes → SNS notification
+- **5XX Errors**: >10 errors in 5 minutes → SNS notification
+- **Response Time**: p99 >1s for 5 minutes → SNS notification
+- **Unhealthy Targets**: <2 healthy targets → SNS notification
 
 ### CloudWatch Dashboard
 
-Acceder al dashboard desde la consola de AWS CloudWatch para ver:
+Access the dashboard from the AWS CloudWatch console to view:
 
-- Request count y response times
-- CPU y memoria utilization
+- Request count and response times
+- CPU and memory utilization
 - Error rates (4xx, 5xx)
 - Healthy/unhealthy target count
 - Auto-scaling metrics
 
-### Logs Estructurados
+### Structured Logs
 
-Todos los logs se envían a CloudWatch Logs en formato JSON:
+All logs are sent to CloudWatch Logs in JSON format:
 
 ```json
 {
@@ -274,15 +274,15 @@ Todos los logs se envían a CloudWatch Logs en formato JSON:
 }
 ```
 
-### Métricas Disponibles
+### Available Metrics
 
-- `request_count`: Total de requests
-- `error_count`: Total de errores
-- `start_time`: Timestamp de inicio de la aplicación
+- `request_count`: Total requests
+- `error_count`: Total errors
+- `start_time`: Application start timestamp
 
-## Seguridad
+## Security
 
-### Análisis Estático
+### Static Analysis
 
 ```bash
 # Python security (Bandit)
@@ -299,46 +299,46 @@ checkov -d infrastructure/terraform --framework terraform --output json
 trivy image streaver-helloworld:latest --format json
 ```
 
-### Mejores Prácticas Implementadas
+### Implemented Best Practices
 
-- Multi-stage Docker builds con non-root user
-- Private subnets para ECS tasks (sin IPs públicas)
-- Security groups con least-privilege
-- IAM roles con políticas mínimas necesarias
-- Secrets en AWS Secrets Manager (no hardcoded)
-- Escaneo automático de vulnerabilidades en CI/CD
-- HTTPS/TLS en ALB (certificados ACM)
-- VPC Flow Logs habilitados
+- Multi-stage Docker builds with non-root user
+- Private subnets for ECS tasks (no public IPs)
+- Security groups with least-privilege
+- IAM roles with minimum necessary policies
+- Secrets in AWS Secrets Manager (not hardcoded)
+- Automatic vulnerability scanning in CI/CD
+- HTTPS/TLS on ALB (ACM certificates)
+- VPC Flow Logs enabled
 
 ## CI/CD Pipelines
 
 ### Continuous Integration (ci.yml)
 
-Ejecuta en cada push y PR:
+Runs on every push and PR:
 
 1. **Lint**: Flake8, Black, isort
-2. **Test**: 32 unit tests con pytest
+2. **Test**: 32 unit tests with pytest
 3. **Security**: Bandit + Safety
-4. **Docker**: Build y scan con Trivy
-5. **CDK**: Synth y tests (16 tests)
+4. **Docker**: Build and scan with Trivy
+5. **CDK**: Synth and tests (16 tests)
 6. **Terraform**: Validate, fmt, plan
 7. **IaC Security**: Checkov scan
-8. **Summary**: Reporte consolidado
+8. **Summary**: Consolidated report
 
 ### Continuous Deployment
 
-- **cd-dev.yml**: Auto-deploy a dev en merge a main
-- **cd-cert.yml**: Deploy manual a cert con approval
-- **cd-prod.yml**: Deploy manual a prod con multi-approval
+- **cd-dev.yml**: Auto-deploy to dev on merge to main
+- **cd-cert.yml**: Manual deploy to cert with approval
+- **cd-prod.yml**: Manual deploy to prod with multi-approval
 
-**NOTA**: Los workflows de CD están deshabilitados por defecto (`if: false`) ya que no hay ambiente AWS disponible para este challenge. Ver [.github/workflows/README.md](.github/workflows/README.md) para instrucciones de configuración.
+**NOTE**: CD workflows are disabled by default (`if: false`) as there is no AWS environment available for this challenge. See [.github/workflows/README.md](.github/workflows/README.md) for configuration instructions.
 
-## Estructura del Proyecto
+## Project Structure
 
 ```
 streaver-helloworld/
 ├── app/
-│   ├── main.py                    # Aplicación Flask
+│   ├── main.py                    # Flask application
 │   └── tests/
 │       └── test_unit.py           # 32 unit tests
 ├── infrastructure/
@@ -378,25 +378,25 @@ streaver-helloworld/
 ├── Dockerfile                     # Multi-stage build
 ├── requirements.txt               # App dependencies
 ├── requirements-dev.txt           # Dev dependencies
-├── README.md                      # Este archivo
-└── ASSUMPTIONS.md                 # Decisiones y trade-offs
+├── README.md                      # This file
+└── ASSUMPTIONS.md                 # Decisions and trade-offs
 ```
 
 ## Testing
 
-### Cobertura de Tests
+### Test Coverage
 
 - **Unit Tests**: 32 tests (100% passing)
   - Endpoints: /, /health, /error, /metrics
-  - Error handling y logging
+  - Error handling and logging
   - Metrics tracking
 
 - **CDK Tests**: 16 tests (100% passing)
-  - VPC y networking resources
+  - VPC and networking resources
   - ECS cluster, service, task definition
   - ALB, target groups, security groups
   - Auto-scaling policies
-  - CloudWatch alarms y dashboard
+  - CloudWatch alarms and dashboard
 
 - **Load Tests**: k6
   - Smoke test: 10 VUs, 30s
@@ -412,96 +412,96 @@ streaver-helloworld/
   - CDK synth + tests
   - Terraform validate + fmt + plan
 
-### Ejecutar Suite Completa
+### Run Complete Suite
 
 ```bash
-# Desde la raíz del proyecto
+# From project root
 bash tests/integration/validate-all.sh
 ```
 
-## Multi-Ambiente
+## Multi-Environment
 
-El proyecto soporta 3 ambientes con configuraciones separadas:
+The project supports 3 environments with separate configurations:
 
-| Ambiente | AWS Account | Region | Fargate Tasks | NAT Gateways | Auto-scaling |
+| Environment | AWS Account | Region | Fargate Tasks | NAT Gateways | Auto-scaling |
 |----------|-------------|--------|---------------|--------------|--------------|
-| **dev** | 111111111111 | us-east-1 | 1 (min) - 2 (max) | 1 | Sí (CPU 70%) |
-| **cert** | 222222222222 | us-east-1 | 2 (min) - 4 (max) | 1 | Sí (CPU 70%) |
-| **prod** | 333333333333 | us-east-1 | 3 (min) - 10 (max) | 3 (HA) | Sí (CPU 60%) |
+| **dev** | 111111111111 | us-east-1 | 1 (min) - 2 (max) | 1 | Yes (CPU 70%) |
+| **cert** | 222222222222 | us-east-1 | 2 (min) - 4 (max) | 1 | Yes (CPU 70%) |
+| **prod** | 333333333333 | us-east-1 | 3 (min) - 10 (max) | 3 (HA) | Yes (CPU 60%) |
 
-### Estrategia Multi-Cuenta
+### Multi-Account Strategy
 
-Se asume una arquitectura de cuentas AWS separadas por ambiente:
+A separate AWS account architecture per environment is assumed:
 
-- **Seguridad**: Aislamiento completo entre ambientes
-- **Compliance**: Controles IAM y SCPs independientes
-- **Billing**: Cost allocation tags por ambiente
-- **Blast radius**: Limitar impacto de cambios
+- **Security**: Complete isolation between environments
+- **Compliance**: Independent IAM controls and SCPs
+- **Billing**: Cost allocation tags per environment
+- **Blast radius**: Limit impact of changes
 
-Ver [ASSUMPTIONS.md](ASSUMPTIONS.md) para más detalles sobre decisiones arquitectónicas.
+See [ASSUMPTIONS.md](ASSUMPTIONS.md) for more details on architectural decisions.
 
-## Mejoras Futuras
+## Future Improvements
 
-Con más tiempo, se implementarían las siguientes mejoras:
+With more time, the following improvements would be implemented:
 
-### Infraestructura
+### Infrastructure
 
-- [ ] **Multi-región**: Despliegue activo-activo o activo-pasivo
-- [ ] **WAF**: AWS WAF para protección contra ataques
-- [ ] **CDN**: CloudFront para cache y distribución global
-- [ ] **RDS/DynamoDB**: Base de datos para persistencia
-- [ ] **ElastiCache**: Redis/Memcached para caching
-- [ ] **Service Mesh**: AWS App Mesh o Istio
-- [ ] **Secrets Rotation**: Rotación automática con Lambda
-- [ ] **Backup**: AWS Backup para disaster recovery
+- [ ] **Multi-region**: Active-active or active-passive deployment
+- [ ] **WAF**: AWS WAF for attack protection
+- [ ] **CDN**: CloudFront for caching and global distribution
+- [ ] **RDS/DynamoDB**: Database for persistence
+- [ ] **ElastiCache**: Redis/Memcached for caching
+- [ ] **Service Mesh**: AWS App Mesh or Istio
+- [ ] **Secrets Rotation**: Automatic rotation with Lambda
+- [ ] **Backup**: AWS Backup for disaster recovery
 
-### Observabilidad
+### Observability
 
-- [ ] **Distributed Tracing**: AWS X-Ray o Datadog APM
+- [ ] **Distributed Tracing**: AWS X-Ray or Datadog APM
 - [ ] **Synthetic Monitoring**: CloudWatch Synthetics canaries
-- [ ] **Log Aggregation**: OpenSearch o ELK stack
-- [ ] **Custom Metrics**: Métricas de negocio con EMF
+- [ ] **Log Aggregation**: OpenSearch or ELK stack
+- [ ] **Custom Metrics**: Business metrics with EMF
 - [ ] **Anomaly Detection**: CloudWatch Anomaly Detection
-- [ ] **SLIs/SLOs**: Service Level Indicators y Objectives
-- [ ] **Runbooks**: Documentación de respuesta a incidentes
+- [ ] **SLIs/SLOs**: Service Level Indicators and Objectives
+- [ ] **Runbooks**: Incident response documentation
 
 ### CI/CD
 
-- [ ] **GitOps**: ArgoCD o Flux para deployments
-- [ ] **Feature Flags**: LaunchDarkly o AWS AppConfig
-- [ ] **Canary Deployments**: Traffic shifting gradual
+- [ ] **GitOps**: ArgoCD or Flux for deployments
+- [ ] **Feature Flags**: LaunchDarkly or AWS AppConfig
+- [ ] **Canary Deployments**: Gradual traffic shifting
 - [ ] **Blue/Green Testing**: Smoke tests pre-cutover
-- [ ] **Rollback Automático**: En caso de health checks fallidos
-- [ ] **Deployment Approvals**: Integraciones con Slack/Teams
-- [ ] **Performance Testing**: K6 en pipeline con thresholds
+- [ ] **Automatic Rollback**: On failed health checks
+- [ ] **Deployment Approvals**: Integrations with Slack/Teams
+- [ ] **Performance Testing**: K6 in pipeline with thresholds
 
-### Seguridad
+### Security
 
 - [ ] **SIEM**: AWS Security Hub + GuardDuty
 - [ ] **Compliance**: AWS Config rules
-- [ ] **Penetration Testing**: Tests automatizados
-- [ ] **Network Segmentation**: PrivateLink para servicios
-- [ ] **Encryption**: KMS keys customer-managed
-- [ ] **Certificate Management**: Renovación automática ACM
-- [ ] **IAM Access Analyzer**: Análisis de permisos
+- [ ] **Penetration Testing**: Automated tests
+- [ ] **Network Segmentation**: PrivateLink for services
+- [ ] **Encryption**: Customer-managed KMS keys
+- [ ] **Certificate Management**: Automatic ACM renewal
+- [ ] **IAM Access Analyzer**: Permissions analysis
 
-### Aplicación
+### Application
 
 - [ ] **API Versioning**: /v1/, /v2/ endpoints
-- [ ] **Rate Limiting**: Throttling por cliente/IP
+- [ ] **Rate Limiting**: Throttling per client/IP
 - [ ] **Caching**: HTTP caching headers
 - [ ] **Compression**: Gzip/Brotli responses
-- [ ] **GraphQL**: Alternativa a REST
-- [ ] **WebSockets**: Para real-time updates
-- [ ] **Async Processing**: SQS + Lambda para background jobs
+- [ ] **GraphQL**: Alternative to REST
+- [ ] **WebSockets**: For real-time updates
+- [ ] **Async Processing**: SQS + Lambda for background jobs
 
-## Desarrollo
+## Development
 
-Este proyecto fue desarrollado como solución al desafío técnico de Streaver. Se utilizó **Claude Code** (modelo: Claude Sonnet 4.5) como herramienta de aceleración para la escritura de código, generación de tests automatizados y documentación técnica, permitiendo reducir significativamente los tiempos de implementación.
+This project was developed as a solution to the Streaver technical challenge. **Claude Code** (model: Claude Sonnet 4.5) was used as an acceleration tool for code writing, automated test generation, and technical documentation, significantly reducing implementation time.
 
-### Commits Incrementales
+### Incremental Commits
 
-El historial de commits muestra el progreso iterativo:
+The commit history shows iterative progress:
 
 1. `feat: add containerized Flask application with health and metrics endpoints`
 2. `feat: add AWS CDK infrastructure with networking, ECS, and monitoring stacks`
@@ -510,17 +510,17 @@ El historial de commits muestra el progreso iterativo:
 5. `feat: add comprehensive CI/CD pipelines with GitHub Actions`
 6. `docs: add final documentation (README and ASSUMPTIONS)`
 
-## Licencia
+## License
 
-Este proyecto es parte de un desafío técnico y no tiene licencia de uso comercial.
+This project is part of a technical challenge and does not have a commercial use license.
 
-## Contacto
+## Contact
 
-Para consultas sobre el desafío:
-- **Empresa**: Streaver
-- **Repositorio**: https://github.com/pcaamano182/streaver-helloworld
-- **Posición**: Senior DevOps Engineer
+For inquiries about the challenge:
+- **Company**: Streaver
+- **Repository**: https://github.com/pcaamano182/streaver-helloworld
+- **Position**: Senior DevOps Engineer
 
 ---
 
-**Nota**: Este README asume que no hay acceso a ambientes AWS reales para el challenge. Todas las instrucciones de deployment son teóricas pero siguen las mejores prácticas de la industria.
+**Note**: This README assumes there is no access to real AWS environments for the challenge. All deployment instructions are theoretical but follow industry best practices.
