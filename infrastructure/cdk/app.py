@@ -65,7 +65,8 @@ def main():
     except (FileNotFoundError, ValueError) as e:
         print(f"Error loading configuration: {e}")
         print("Please set ENVIRONMENT variable or pass --context environment=<env>")
-        return
+        import sys
+        sys.exit(1)
 
     # AWS Environment configuration
     env = Environment(

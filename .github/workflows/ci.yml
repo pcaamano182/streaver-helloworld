@@ -187,7 +187,7 @@ jobs:
           cd infrastructure/cdk
           for env in dev cert prod; do
             echo "Synthesizing for $env..."
-            cdk synth -c environment=$env
+            cdk synth --all -c environment=$env --output cdk.out.$env
           done
 
   validate-terraform:
