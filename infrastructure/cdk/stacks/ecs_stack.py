@@ -99,18 +99,6 @@ class EcsStack(Stack):
             description=f"Task role for {env_name} environment",
         )
 
-        # Grant task role permissions for CloudWatch Logs
-        task_role.add_to_policy(
-            iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents",
-                ],
-                resources=["*"],
-            )
-        )
-
         # Map log retention days to RetentionDays enum
         retention_map = {
             1: logs.RetentionDays.ONE_DAY,
@@ -134,6 +122,18 @@ class EcsStack(Stack):
             log_group_name=f"/ecs/{ecs_config['cluster_name']}",
             retention=retention,
             removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # Grant task role permissions for CloudWatch Logs
+        task_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents",
+                ],
+                resources=[f"{log_group.log_group_arn}:*"],
+            )
         )
 
         # Task Definition

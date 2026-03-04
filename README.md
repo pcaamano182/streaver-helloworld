@@ -156,9 +156,9 @@ export AWS_PROFILE=dev
 cdk deploy --all -c environment=dev --require-approval never
 
 # Deploy specific stack
-cdk deploy StreamerHelloWorldNetwork-dev -c environment=dev
-cdk deploy StreamerHelloWorldEcs-dev -c environment=dev
-cdk deploy StreamerHelloWorldMonitoring-dev -c environment=dev
+cdk deploy StreaverHelloWorldNetwork-dev -c environment=dev
+cdk deploy StreaverHelloWorldEcs-dev -c environment=dev
+cdk deploy StreaverHelloWorldMonitoring-dev -c environment=dev
 
 # View outputs (ALB URL, etc.)
 cdk outputs --all -c environment=dev
@@ -185,12 +185,12 @@ cdk deploy --all -c environment=prod
 cdk destroy --all -c environment=dev
 
 # Delete in reverse order (recommended)
-cdk destroy StreamerHelloWorldMonitoring-dev -c environment=dev
-cdk destroy StreamerHelloWorldEcs-dev -c environment=dev
-cdk destroy StreamerHelloWorldNetwork-dev -c environment=dev
+cdk destroy StreaverHelloWorldMonitoring-dev -c environment=dev
+cdk destroy StreaverHelloWorldEcs-dev -c environment=dev
+cdk destroy StreaverHelloWorldNetwork-dev -c environment=dev
 ```
 
-## 🔧 Deployment with Terraform
+## Deployment with Terraform
 
 ### Initial Setup
 
@@ -503,27 +503,9 @@ With more time, the following improvements would be implemented:
 
 This project was developed as a solution to the Streaver technical challenge. **Claude Code** (model: Claude Sonnet 4.5) was used as an acceleration tool for code writing, automated test generation, and technical documentation, significantly reducing implementation time.
 
-### Incremental Commits
-
-The commit history shows iterative progress:
-
-1. `feat: add containerized Flask application with health and metrics endpoints`
-2. `feat: add AWS CDK infrastructure with networking, ECS, and monitoring stacks`
-3. `feat: add Terraform infrastructure with modular design`
-4. `feat: add comprehensive testing suite (unit, load, security, IaC validation)`
-5. `feat: add comprehensive CI/CD pipelines with GitHub Actions`
-6. `docs: add final documentation (README and ASSUMPTIONS)`
-
 ## License
 
 This project is part of a technical challenge and does not have a commercial use license.
-
-## Contact
-
-For inquiries about the challenge:
-- **Company**: Streaver
-- **Repository**: https://github.com/pcaamano182/streaver-helloworld
-- **Position**: Senior DevOps Engineer
 
 ---
 
